@@ -2,20 +2,23 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Slide từ Excel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Slide từ Excel GitHub</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    #slides {
-      margin-top: 20px;
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f9f9f9;
     }
 
     .slide {
       display: none;
       padding: 20px;
-      background: #fff;
+      background: white;
       border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
     }
 
     .active {
@@ -30,6 +33,7 @@
     th, td {
       border: 1px solid #ccc;
       padding: 8px;
+      text-align: left;
     }
 
     .nav-buttons {
@@ -39,9 +43,7 @@
 </head>
 <body>
 
-<h2>Upload Excel và Xem Slide</h2>
-<input type="file" id="inputExcel" accept=".xlsx, .xls" />
-
+<h2>Slide dữ liệu từ Excel (GitHub)</h2>
 <div id="slides"></div>
 <div class="nav-buttons">
   <button onclick="prevSlide()">⬅ Trước</button>
@@ -52,25 +54,23 @@
   let currentSlide = 0;
   let slides = [];
 
-  document.getElementById('inputExcel').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, {type: 'array'});
-      const sheetName = workbook.SheetNames[0];
-      const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header: 1});
-      renderSlides(sheet);
-    };
-    reader.readAsArrayBuffer(file);
-  });
+  const excelUrl = "https://raw.githubusercontent.com/[USERNAME]/[REPO]/main/OUTSOLE%20CJV%20-%20CO%20summary.xlsx";
+
+  fetch(excelUrl)
+    .then(response => response.arrayBuffer())
+    .then(data => {
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      renderSlides(jsonData);
+    })
+    .catch(error => console.error("Lỗi tải file Excel:", error));
 
   function renderSlides(data) {
     const container = document.getElementById('slides');
     container.innerHTML = "";
     slides = [];
 
-    // Chia mỗi slide hiển thị 10 dòng
     const rowsPerSlide = 10;
     for (let i = 0; i < data.length; i += rowsPerSlide) {
       const chunk = data.slice(i, i + rowsPerSlide);
