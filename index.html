@@ -1,84 +1,106 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Slide từ Excel</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Slides từ Excel</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
+    body { font-family: Arial; padding: 20px; background: #f0f0f0; }
     .slide { display: none; }
     .active { display: block; }
-    table { border-collapse: collapse; width: 100%; margin-top: 20px; background: white; }
-    th, td { border: 1px solid #ccc; padding: 8px; }
     .controls { margin-bottom: 20px; }
-    canvas { background: #fff; border-radius: 10px; margin-top: 20px; }
+    table { border-collapse: collapse; width: 100%; margin: 20px 0; background: white; }
+    th, td { border: 1px solid #ccc; padding: 6px; font-size: 14px; }
+    canvas { max-width: 100%; height: 250px !important; margin-bottom: 20px; background: #fff; border-radius: 10px; }
+    .chart-group { display: flex; flex-wrap: wrap; gap: 20px; }
+    .chart-wrapper { flex: 1 1 300px; }
   </style>
 </head>
 <body>
 
-<h2>Slide dữ liệu từ Excel</h2>
+<h2>Slides từ Excel</h2>
 <div class="controls">
-  <button onclick="showSlide(0)">Slide 1: Source data</button>
-  <button onclick="showSlide(1)">Slide 2: List</button>
+  <button onclick="showSlide(0)">Slide 1: Source Data</button>
+  <button onclick="showSlide(1)">Slide 2: List + Lý do</button>
 </div>
 
+<!-- Slide 1 -->
 <div id="slide1" class="slide">
   <h3>Source Data</h3>
   <div id="table1"></div>
-  <canvas id="chart1" height="300"></canvas>
+  <canvas id="chart1"></canvas>
 </div>
 
+<!-- Slide 2 -->
 <div id="slide2" class="slide">
   <h3>List</h3>
   <div id="table2"></div>
-  <canvas id="chart2" height="300"></canvas>
+  <h4>Bảng tóm tắt lý do</h4>
+  <div id="summary-table"></div>
+  <div class="chart-group">
+    <div class="chart-wrapper">
+      <canvas id="chart2a"></canvas>
+    </div>
+    <div class="chart-wrapper">
+      <canvas id="chart2b"></canvas>
+    </div>
+    <div class="chart-wrapper">
+      <canvas id="chart2c"></canvas>
+    </div>
+  </div>
 </div>
 
 <script>
-  const excelUrl = "OUTSOLE CJV - CO summary.xlsx";
+  const excelUrl = "OUTSOLE CJV - CO summary.xlsx"; 
 
   function showSlide(index) {
     document.querySelectorAll('.slide').forEach((el, i) => {
       el.classList.toggle('active', i === index);
     });
   }
-
-  showSlide(0); // hiển thị slide đầu tiên khi load
+  showSlide(0);
 
   fetch(excelUrl)
     .then(res => res.arrayBuffer())
     .then(data => {
       const workbook = XLSX.read(data, { type: 'array' });
 
-      // Slide 1 - Source data
+      // ===== Slide 1 =====
       const sheet1 = workbook.Sheets["Source data"];
       const json1 = XLSX.utils.sheet_to_json(sheet1, { header: 1 });
       renderTable(json1, "table1");
 
-      // Thống kê theo Status (cột thứ 5 = Unplanned/Scheduled/...)
+      // Đếm Status (cột 5)
       const statusCounts = {};
-      for (let i = 5; i < json1.length; i++) {
+      for (let i = 1; i < json1.length; i++) {
         const status = json1[i][5];
         if (status) statusCounts[status] = (statusCounts[status] || 0) + 1;
       }
+      renderBarChart("chart1", Object.keys(statusCounts), Object.values(statusCounts), "Status");
 
-      renderBarChart("chart1", Object.keys(statusCounts), Object.values(statusCounts), "Status Count");
-
-      // Slide 2 - List
+      // ===== Slide 2 =====
       const sheet2 = workbook.Sheets["List"];
       const json2 = XLSX.utils.sheet_to_json(sheet2, { header: 1 });
       renderTable(json2, "table2");
 
-      // Thống kê lý do "No Material" (cột 2)
-      const reasons = {};
-      for (let i = 0; i < json2.length; i++) {
-        const reason = json2[i][2];
-        if (reason) reasons[reason] = (reasons[reason] || 0) + 1;
+      // Tổng hợp 3 lý do (cột 3,4,5)
+      const reasons = { "No Material": {}, "New Upper": {}, "Existing Sole": {} };
+      for (let i = 1; i < json2.length; i++) {
+        ["No Material", "New Upper", "Existing Sole"].forEach((key, idx) => {
+          const val = json2[i][idx + 2];
+          if (val) reasons[key][val] = (reasons[key][val] || 0) + 1;
+        });
       }
 
-      renderPieChart("chart2", Object.keys(reasons), Object.values(reasons), "No Material Reasons");
+      // Hiển thị bảng tóm tắt lý do
+      renderSummaryTable(reasons, "summary-table");
+
+      // Vẽ 3 biểu đồ
+      renderBarChart("chart2a", Object.keys(reasons["No Material"]), Object.values(reasons["No Material"]), "No Material");
+      renderBarChart("chart2b", Object.keys(reasons["New Upper"]), Object.values(reasons["New Upper"]), "New Upper");
+      renderBarChart("chart2c", Object.keys(reasons["Existing Sole"]), Object.values(reasons["Existing Sole"]), "Existing Sole");
     });
 
   function renderTable(data, containerId) {
@@ -87,9 +109,9 @@
     data.forEach((row, i) => {
       const tr = document.createElement("tr");
       row.forEach(cell => {
-        const cellEl = document.createElement(i === 0 ? "th" : "td");
-        cellEl.textContent = cell || "";
-        tr.appendChild(cellEl);
+        const el = document.createElement(i === 0 ? "th" : "td");
+        el.textContent = cell || "";
+        tr.appendChild(el);
       });
       table.appendChild(tr);
     });
@@ -97,42 +119,45 @@
     container.appendChild(table);
   }
 
+  function renderSummaryTable(reasons, containerId) {
+    const container = document.getElementById(containerId);
+    const table = document.createElement("table");
+    const header = document.createElement("tr");
+    header.innerHTML = "<th>Lý do</th><th>Loại</th><th>Số lượng</th>";
+    table.appendChild(header);
+
+    Object.entries(reasons).forEach(([type, obj]) => {
+      Object.entries(obj).forEach(([reason, count]) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${reason}</td><td>${type}</td><td>${count}</td>`;
+        table.appendChild(row);
+      });
+    });
+
+    container.innerHTML = '';
+    container.appendChild(table);
+  }
+
   function renderBarChart(canvasId, labels, values, label) {
     new Chart(document.getElementById(canvasId), {
-      type: 'bar',
+      type: "bar",
       data: {
         labels: labels,
         datasets: [{
           label: label,
           data: values,
-          backgroundColor: 'rgba(75, 192, 192, 0.6)'
+          backgroundColor: "rgba(54, 162, 235, 0.6)"
         }]
       },
       options: {
         responsive: true,
+        plugins: {
+          legend: { display: false },
+          title: { display: true, text: label }
+        },
         scales: {
           y: { beginAtZero: true }
         }
-      }
-    });
-  }
-
-  function renderPieChart(canvasId, labels, values, label) {
-    new Chart(document.getElementById(canvasId), {
-      type: 'pie',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: label,
-          data: values,
-          backgroundColor: [
-            '#4dc9f6', '#f67019', '#f53794', '#537bc4', '#acc236',
-            '#166a8f', '#00a950', '#58595b', '#8549ba'
-          ]
-        }]
-      },
-      options: {
-        responsive: true
       }
     });
   }
