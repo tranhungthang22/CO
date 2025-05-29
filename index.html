@@ -3,67 +3,114 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CO </title>
+  <title>Slide từ Excel</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    body {
-      margin: 0;
+    #slides {
+      margin-top: 20px;
+    }
+
+    .slide {
+      display: none;
       padding: 20px;
-      background: #f2f2f2;
-      font-family: sans-serif;
-    }
-
-    .slide-container {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      max-width: 1000px;
-      margin: auto;
-    }
-
-    .row {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .row img {
-      width: 200px;
-      height: 150px;
-      object-fit: cover;
+      background: #fff;
       border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-      transition: transform 0.3s;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
 
-    .row img:hover {
-      transform: scale(1.05);
+    .active {
+      display: block;
     }
 
-    @media (max-width: 768px) {
-      .row {
-        flex-direction: column;
-        align-items: center;
-      }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
 
-      .row img {
-        width: 90%;
-        height: auto;
-      }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+    }
+
+    .nav-buttons {
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
-  <div class="slide-container">
-    <div class="row">
-      <img src="1.jpg" alt="Ảnh 1">
-      <img src="2.jpg" alt="Ảnh 2">
-      <img src="3.jpg" alt="Ảnh 3">
-    </div>
-    <div class="row">
-      <img src="4.jpg" alt="Ảnh 4">
-      <img src="5.jpg" alt="Ảnh 5">
-    </div>
-  </div>
+
+<h2>Upload Excel và Xem Slide</h2>
+<input type="file" id="inputExcel" accept=".xlsx, .xls" />
+
+<div id="slides"></div>
+<div class="nav-buttons">
+  <button onclick="prevSlide()">⬅ Trước</button>
+  <button onclick="nextSlide()">Tiếp ➡</button>
+</div>
+
+<script>
+  let currentSlide = 0;
+  let slides = [];
+
+  document.getElementById('inputExcel').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, {type: 'array'});
+      const sheetName = workbook.SheetNames[0];
+      const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header: 1});
+      renderSlides(sheet);
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  function renderSlides(data) {
+    const container = document.getElementById('slides');
+    container.innerHTML = "";
+    slides = [];
+
+    // Chia mỗi slide hiển thị 10 dòng
+    const rowsPerSlide = 10;
+    for (let i = 0; i < data.length; i += rowsPerSlide) {
+      const chunk = data.slice(i, i + rowsPerSlide);
+      const div = document.createElement('div');
+      div.className = 'slide';
+      const table = document.createElement('table');
+
+      chunk.forEach((row, rowIndex) => {
+        const tr = document.createElement('tr');
+        row.forEach(cell => {
+          const cellEl = document.createElement(rowIndex === 0 ? 'th' : 'td');
+          cellEl.textContent = cell || '';
+          tr.appendChild(cellEl);
+        });
+        table.appendChild(tr);
+      });
+
+      div.appendChild(table);
+      container.appendChild(div);
+      slides.push(div);
+    }
+
+    showSlide(0);
+  }
+
+  function showSlide(index) {
+    slides.forEach((slide, i) => {
+      slide.classList.toggle('active', i === index);
+    });
+    currentSlide = index;
+  }
+
+  function prevSlide() {
+    if (currentSlide > 0) showSlide(currentSlide - 1);
+  }
+
+  function nextSlide() {
+    if (currentSlide < slides.length - 1) showSlide(currentSlide + 1);
+  }
+</script>
+
 </body>
 </html>
