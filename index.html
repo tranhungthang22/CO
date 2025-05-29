@@ -1,105 +1,138 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Slide + Biểu đồ từ Excel</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Slide từ Excel</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      background: #f4f4f4;
-    }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-bottom: 20px;
-    }
-    th, td {
-      border: 1px solid #ccc;
-      padding: 8px;
-    }
-    canvas {
-      max-width: 100%;
-      background: #fff;
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
+    .slide { display: none; }
+    .active { display: block; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; background: white; }
+    th, td { border: 1px solid #ccc; padding: 8px; }
+    .controls { margin-bottom: 20px; }
+    canvas { background: #fff; border-radius: 10px; margin-top: 20px; }
   </style>
 </head>
 <body>
 
-<h2>Dữ liệu từ Excel</h2>
-<canvas id="chart"></canvas>
-<div id="table-container"></div>
+<h2>Slide dữ liệu từ Excel</h2>
+<div class="controls">
+  <button onclick="showSlide(0)">Slide 1: Source data</button>
+  <button onclick="showSlide(1)">Slide 2: List</button>
+</div>
+
+<div id="slide1" class="slide">
+  <h3>Source Data</h3>
+  <div id="table1"></div>
+  <canvas id="chart1" height="300"></canvas>
+</div>
+
+<div id="slide2" class="slide">
+  <h3>List</h3>
+  <div id="table2"></div>
+  <canvas id="chart2" height="300"></canvas>
+</div>
 
 <script>
   const excelUrl = "OUTSOLE CJV - CO summary.xlsx";
 
+  function showSlide(index) {
+    document.querySelectorAll('.slide').forEach((el, i) => {
+      el.classList.toggle('active', i === index);
+    });
+  }
+
+  showSlide(0); // hiển thị slide đầu tiên khi load
+
   fetch(excelUrl)
     .then(res => res.arrayBuffer())
     .then(data => {
-      const workbook = XLSX.read(data, { type: "array" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      const workbook = XLSX.read(data, { type: 'array' });
 
-      renderTable(json);
-      renderChart(json);
+      // Slide 1 - Source data
+      const sheet1 = workbook.Sheets["Source data"];
+      const json1 = XLSX.utils.sheet_to_json(sheet1, { header: 1 });
+      renderTable(json1, "table1");
+
+      // Thống kê theo Status (cột thứ 5 = Unplanned/Scheduled/...)
+      const statusCounts = {};
+      for (let i = 5; i < json1.length; i++) {
+        const status = json1[i][5];
+        if (status) statusCounts[status] = (statusCounts[status] || 0) + 1;
+      }
+
+      renderBarChart("chart1", Object.keys(statusCounts), Object.values(statusCounts), "Status Count");
+
+      // Slide 2 - List
+      const sheet2 = workbook.Sheets["List"];
+      const json2 = XLSX.utils.sheet_to_json(sheet2, { header: 1 });
+      renderTable(json2, "table2");
+
+      // Thống kê lý do "No Material" (cột 2)
+      const reasons = {};
+      for (let i = 0; i < json2.length; i++) {
+        const reason = json2[i][2];
+        if (reason) reasons[reason] = (reasons[reason] || 0) + 1;
+      }
+
+      renderPieChart("chart2", Object.keys(reasons), Object.values(reasons), "No Material Reasons");
     });
 
-  function renderTable(data) {
-    const container = document.getElementById("table-container");
+  function renderTable(data, containerId) {
+    const container = document.getElementById(containerId);
     const table = document.createElement("table");
-
-    data.forEach((row, rowIndex) => {
+    data.forEach((row, i) => {
       const tr = document.createElement("tr");
       row.forEach(cell => {
-        const cellEl = document.createElement(rowIndex === 0 ? "th" : "td");
+        const cellEl = document.createElement(i === 0 ? "th" : "td");
         cellEl.textContent = cell || "";
         tr.appendChild(cellEl);
       });
       table.appendChild(tr);
     });
-
+    container.innerHTML = '';
     container.appendChild(table);
   }
 
-  function renderChart(data) {
-    if (data.length < 2) return;
-
-    const labels = [];
-    const values = [];
-
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0] && data[i][1]) {
-        labels.push(data[i][0]);
-        values.push(Number(data[i][1]));
-      }
-    }
-
-    new Chart(document.getElementById("chart"), {
-      type: "bar", // hoặc "line", "pie", "doughnut", "radar"
+  function renderBarChart(canvasId, labels, values, label) {
+    new Chart(document.getElementById(canvasId), {
+      type: 'bar',
       data: {
         labels: labels,
         datasets: [{
-          label: data[0][1],
+          label: label,
           data: values,
-          backgroundColor: "rgba(54, 162, 235, 0.6)",
-          borderColor: "rgba(54, 162, 235, 1)",
-          borderWidth: 1
+          backgroundColor: 'rgba(75, 192, 192, 0.6)'
         }]
       },
       options: {
         responsive: true,
-        plugins: {
-          legend: { position: "top" },
-          title: { display: true, text: "Biểu đồ từ Excel" }
-        },
         scales: {
           y: { beginAtZero: true }
         }
+      }
+    });
+  }
+
+  function renderPieChart(canvasId, labels, values, label) {
+    new Chart(document.getElementById(canvasId), {
+      type: 'pie',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: label,
+          data: values,
+          backgroundColor: [
+            '#4dc9f6', '#f67019', '#f53794', '#537bc4', '#acc236',
+            '#166a8f', '#00a950', '#58595b', '#8549ba'
+          ]
+        }]
+      },
+      options: {
+        responsive: true
       }
     });
   }
